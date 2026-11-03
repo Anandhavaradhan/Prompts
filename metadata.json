@@ -1,0 +1,6 @@
+{
+  "name": "PromptVault — Cloud Prompt Engineering Library",
+  "description": "Structured prompt engineering workspace and cloud repository powered by Firebase Firestore with template variables, collections, and versioned prompt organization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

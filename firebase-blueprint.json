@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "Prompt": {
+      "title": "Prompt",
+      "description": "A user-owned prompt template stored in Firestore with variable placeholders, categorization, target model metadata, and usage tracking.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Human-readable title of the prompt template.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "description": "Concise summary of the prompt's purpose and expected output.",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "content": {
+          "type": "string",
+          "description": "The prompt body text, optionally containing {{variable}} placeholders.",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "category": {
+          "type": "string",
+          "description": "Primary functional domain of the prompt.",
+          "enum": ["Coding", "Writing", "Analysis", "System", "Research", "Creative"],
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "targetModel": {
+          "type": "string",
+          "description": "Recommended LLM or model family for running this prompt.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "collectionName": {
+          "type": "string",
+          "description": "Named workspace collection or folder grouping.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "tags": {
+          "type": "array",
+          "description": "Up to 8 short descriptive tags for filtering.",
+          "maxLength": 8
+        },
+        "isPinned": {
+          "type": "boolean",
+          "description": "Whether the prompt is pinned to the top of the user's library."
+        },
+        "usageCount": {
+          "type": "integer",
+          "description": "Number of times this prompt has been copied or compiled."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the prompt creator and owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the prompt was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the prompt was last updated."
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "content",
+        "category",
+        "targetModel",
+        "collectionName",
+        "tags",
+        "isPinned",
+        "usageCount",
+        "ownerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/prompts/{promptId}": {
+      "schema": {
+        "$ref": "#/entities/Prompt"
+      },
+      "description": "Collection storing individual user-owned prompts isolated by ownerId."
+    }
+  }
+}
