@@ -6,8 +6,8 @@ A library for your AI prompts. Each prompt is a square: click it to copy, or fil
 ## Get it
 
 - **Website**: https://anandhavaradhan.github.io/Prompts/
-- **Android**: [PromptVault.apk](https://github.com/Anandhavaradhan/Prompts/releases/download/promptvault-latest/PromptVault.apk)
-- **Windows**: [PromptVault.exe](https://github.com/Anandhavaradhan/Prompts/releases/download/promptvault-latest/PromptVault.exe) (portable, no installation)
+- **Android**: [PromptVault.apk](https://github.com/Anandhavaradhan/Prompts/raw/downloads/PromptVault.apk)
+- **Windows**: [PromptVault.exe](https://github.com/Anandhavaradhan/Prompts/raw/downloads/PromptVault.exe) (portable, no installation)
 
 The website and the apps are static builds with no server of their own:
 
