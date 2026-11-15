@@ -141,7 +141,7 @@ Guidelines:
 - Lead with the highest-impact workflow improvement and a concrete before/after example.
 - Group changes cleanly into New Capabilities, Performance Improvements, and Breaking Changes.
 - Avoid marketing fluff or superlatives; state exact technical behavior and upgrade steps.`,
-    category: 'Editorial' as unknown as PromptRecord['category'], // wait - let's use 'Writing' so it matches PROMPT_CATEGORIES strictly!
+    category: 'Writing',
     targetModel: 'GPT-4o',
     collectionName: 'Editorial & Copy',
     tags: ['changelog', 'release-notes', 'developer-experience'],
@@ -152,7 +152,4 @@ Guidelines:
     updatedAtMs: 1761910000000,
     source: 'local',
   },
-].map((item) => ({
-  ...item,
-  category: item.category === ('Editorial' as unknown) ? 'Writing' : item.category,
-}));
+];
