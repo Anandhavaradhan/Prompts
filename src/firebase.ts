@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import {
   getAuth,
+  connectAuthEmulator,
   GoogleAuthProvider,
   signInWithPopup,
   signOut as firebaseSignOut,
@@ -9,6 +10,7 @@ import {
 } from 'firebase/auth';
 import {
   getFirestore,
+  connectFirestoreEmulator,
   collection,
   doc,
   getDocFromServer,
@@ -33,6 +35,12 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Local testing against the Firebase emulators: run with VITE_USE_FIREBASE_EMULATORS=true
+if (import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+}
 
 export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
 export const FIRESTORE_DATABASE_ID = firebaseConfig.firestoreDatabaseId;

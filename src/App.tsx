@@ -15,6 +15,7 @@ import {
   X,
   Loader2,
   AlertCircle,
+  Database,
 } from 'lucide-react';
 import {
   auth,
@@ -33,6 +34,7 @@ import {
   PROMPT_CATEGORIES,
   filterAndSortPrompts,
   rankPromptsBySemanticMatches,
+  extractTemplateVariables,
   validatePromptDraft,
   type PromptRecord,
   type PromptDraftInput,
@@ -42,6 +44,8 @@ import {
 import { SEED_PROMPTS } from './data/seedPrompts';
 import { semanticSearchPromptsWithGemini } from './utils/geminiClient';
 import { PromptEditorModal } from './components/PromptEditorModal';
+import { PromptWorkbench } from './components/PromptWorkbench';
+import { CloudSyncView } from './components/CloudSyncView';
 
 const LOCAL_STORAGE_KEY = 'promptvault_local_prompts_v1';
 
@@ -122,6 +126,12 @@ export default function App() {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<PromptRecord | null>(null);
   const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
+  // Workbench: fill in a template's {{variables}} before copying
+  const [workbenchPromptId, setWorkbenchPromptId] = useState<string | null>(null);
+  // Cloud sync panel
+  const [isVaultOpen, setIsVaultOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatusMessage, setSyncStatusMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -216,28 +226,87 @@ export default function App() {
     }
   };
 
-  // Seed starter prompts to Firebase if cloud vault is empty
+  const toDraft = (p: PromptRecord): PromptDraftInput => ({
+    title: p.title,
+    description: p.description,
+    content: p.content,
+    category: p.category,
+    targetModel: p.targetModel,
+    collectionName: p.collectionName,
+    tagsInput: p.tags,
+    isPinned: p.isPinned,
+  });
+
+  // Copy prompts into the signed-in user's cloud vault, skipping any already there (same title and content)
+  const uploadToCloud = async (records: PromptRecord[]): Promise<{ added: number; skipped: number }> => {
+    if (!user) return { added: 0, skipped: 0 };
+    const existing = new Set(cloudPrompts.map((p) => `${p.title}\u0000${p.content}`));
+    let added = 0;
+    let skipped = 0;
+    for (const p of records) {
+      const key = `${p.title}\u0000${p.content}`;
+      if (existing.has(key)) {
+        skipped++;
+        continue;
+      }
+      await createCloudPrompt(user.uid, toDraft(p));
+      existing.add(key);
+      added++;
+    }
+    return { added, skipped };
+  };
+
+  // Seed starter prompts to Firebase (used when the cloud vault is empty, and from the Cloud Sync panel)
   const handleImportStartersToCloud = async () => {
     if (!user) return;
-    setIsLoadingCloud(true);
+    setIsSyncing(true);
+    setSyncStatusMessage(null);
     try {
-      for (const starter of SEED_PROMPTS) {
-        await createCloudPrompt(user.uid, {
-          title: starter.title,
-          description: starter.description,
-          content: starter.content,
-          category: starter.category,
-          targetModel: starter.targetModel,
-          collectionName: starter.collectionName,
-          tagsInput: starter.tags,
-          isPinned: starter.isPinned,
-        });
-      }
+      const { added, skipped } = await uploadToCloud(SEED_PROMPTS);
+      setSyncStatusMessage(`Added ${added} starter prompt${added === 1 ? '' : 's'}${skipped ? ` (${skipped} already in your vault)` : ''}.`);
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Failed to import starter prompts.');
     } finally {
-      setIsLoadingCloud(false);
+      setIsSyncing(false);
     }
+  };
+
+  // Prompts you made on this device before signing in (not the built-in starters)
+  const userLocalPrompts = localPrompts.filter((p) => !p.id.startsWith('seed_'));
+
+  const handleSyncLocalToCloud = async () => {
+    if (!user) return;
+    setIsSyncing(true);
+    setSyncStatusMessage(null);
+    try {
+      const { added, skipped } = await uploadToCloud(userLocalPrompts);
+      setSyncStatusMessage(
+        userLocalPrompts.length === 0
+          ? 'There are no prompts on this device to upload. Only prompts you created before signing in are uploaded.'
+          : `Uploaded ${added} prompt${added === 1 ? '' : 's'} from this device${skipped ? ` (${skipped} already in your vault)` : ''}.`
+      );
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Failed to upload local prompts.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Download the prompts you are looking at as JSON
+  const handleExportJson = () => {
+    const data = activePrompts.map(({ source, ...p }) => p);
+    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), prompts: data }, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `promptvault-${user ? 'cloud' : 'local'}-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    showToast(`Exported ${data.length} prompts`);
   };
 
   // Run Gemini AI Semantic Search
@@ -260,8 +329,31 @@ export default function App() {
     }
   };
 
-  // Click Square -> Immediately copy entire prompt inside
+  // Count a use of a prompt
+  const recordUsage = async (prompt: PromptRecord) => {
+    if (user) {
+      try {
+        await incrementCloudPromptUsage(prompt.id, prompt.usageCount);
+      } catch {
+        // ignore
+      }
+    } else {
+      setLocalPrompts((prev) =>
+        prev.map((p) =>
+          p.id === prompt.id
+            ? { ...p, usageCount: p.usageCount + 1, updatedAtMs: Date.now() }
+            : p
+        )
+      );
+    }
+  };
+
+  // Click Square -> copy the prompt, or open the Workbench first when it has {{variables}} to fill in
   const handleSquareClick = async (prompt: PromptRecord) => {
+    if (extractTemplateVariables(prompt.content).length > 0) {
+      setWorkbenchPromptId(prompt.id);
+      return;
+    }
     try {
       await navigator.clipboard.writeText(prompt.content);
     } catch {
@@ -281,23 +373,10 @@ export default function App() {
       setCopiedId((prev) => (prev === prompt.id ? null : prev));
     }, 2000);
 
-    // Increment usage count
-    if (user) {
-      try {
-        await incrementCloudPromptUsage(prompt.id, prompt.usageCount);
-      } catch {
-        // ignore
-      }
-    } else {
-      setLocalPrompts((prev) =>
-        prev.map((p) =>
-          p.id === prompt.id
-            ? { ...p, usageCount: p.usageCount + 1, updatedAtMs: Date.now() }
-            : p
-        )
-      );
-    }
+    await recordUsage(prompt);
   };
+
+  const workbenchPrompt = workbenchPromptId ? activePrompts.find((p) => p.id === workbenchPromptId) || null : null;
 
   // Save new or edited prompt
   const handleSavePrompt = async (draft: PromptDraftInput, existingId?: string) => {
@@ -363,8 +442,8 @@ export default function App() {
   };
 
   // Toggle pin on a square
-  const handleTogglePin = async (e: React.MouseEvent, prompt: PromptRecord) => {
-    e.stopPropagation();
+  const handleTogglePin = async (e: React.MouseEvent | null, prompt: PromptRecord) => {
+    e?.stopPropagation();
     if (user) {
       await toggleCloudPromptPin(prompt.id, !prompt.isPinned);
     } else {
@@ -397,7 +476,7 @@ export default function App() {
                 PromptVault
               </span>
               <span className="hidden sm:inline-block ml-2.5 text-xs text-slate-400 font-medium">
-                Click any square to copy prompt
+                Click a square to copy it, or fill in its {'{{variables}}'} first
               </span>
             </div>
           </div>
@@ -429,6 +508,18 @@ export default function App() {
                 <LogIn className="w-3 h-3 ml-0.5 text-slate-500" />
               </button>
             )}
+
+            <button
+              onClick={() => {
+                setSyncStatusMessage(null);
+                setIsVaultOpen(true);
+              }}
+              title="Cloud sync, upload and export"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-200/90 hover:border-slate-300 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
+            >
+              <Database className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden sm:inline">Vault</span>
+            </button>
 
             <button
               onClick={() => {
@@ -833,6 +924,74 @@ export default function App() {
         >
           <Check className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Workbench: fill in {{variables}} and copy */}
+      {workbenchPrompt && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto"
+          onClick={() => setWorkbenchPromptId(null)}
+        >
+          <div className="w-full max-w-3xl relative" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Fill in prompt variables">
+            <button
+              type="button"
+              onClick={() => setWorkbenchPromptId(null)}
+              aria-label="Close"
+              className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full bg-white border border-slate-200 shadow flex items-center justify-center text-slate-500 hover:text-slate-900 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <PromptWorkbench
+              prompt={workbenchPrompt}
+              onEdit={(p) => {
+                setWorkbenchPromptId(null);
+                setEditingPrompt(p);
+                setIsEditorOpen(true);
+              }}
+              onTogglePin={(p) => handleTogglePin(null, p)}
+              onDelete={(p) => {
+                setWorkbenchPromptId(null);
+                void executeDeletePrompt(p.id);
+              }}
+              onRecordCopy={(p, text) => {
+                showToast(text === p.content ? `Copied "${p.title}" (template)` : `Copied "${p.title}" with your values`);
+                void recordUsage(p);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Cloud sync, upload and export */}
+      {isVaultOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto"
+          onClick={() => setIsVaultOpen(false)}
+        >
+          <div className="w-full max-w-4xl relative" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Cloud sync">
+            <button
+              type="button"
+              onClick={() => setIsVaultOpen(false)}
+              aria-label="Close"
+              className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full bg-white border border-slate-200 shadow flex items-center justify-center text-slate-500 hover:text-slate-900 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <CloudSyncView
+              user={user}
+              cloudPromptsCount={cloudPrompts.length}
+              localPromptsCount={userLocalPrompts.length}
+              isSyncing={isSyncing}
+              syncStatusMessage={syncStatusMessage}
+              onSignIn={handleGoogleSignIn}
+              onSignOut={() => void signOutUser()}
+              onSyncLocalToCloud={handleSyncLocalToCloud}
+              onSeedStarterPromptsToCloud={handleImportStartersToCloud}
+              onExportJson={handleExportJson}
+              prompts={activePrompts}
+            />
+          </div>
         </div>
       )}
 
