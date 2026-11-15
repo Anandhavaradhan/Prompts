@@ -40,6 +40,18 @@ async function startServer() {
 
   app.use(express.json({ limit: '1mb' }));
 
+  // The website on GitHub Pages and the Android/Windows apps call this server from other origins.
+  app.use('/api', (req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(204);
+      return;
+    }
+    next();
+  });
+
   /**
    * POST /api/gemini/name-prompt
    * Generates a concise title, summary description, category, and tags from a raw prompt template.

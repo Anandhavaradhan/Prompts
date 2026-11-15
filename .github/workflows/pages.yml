@@ -1,0 +1,45 @@
+# Publishes PromptVault to GitHub Pages: https://anandhavaradhan.github.io/Prompts/
+# One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+# Optional: set the repository variable API_BASE to the address of a hosted copy of server.ts
+# to turn on Gemini naming and search. Without it the site uses on-device matching.
+name: Website
+
+on:
+  push:
+    branches: [main]
+    paths: ['src/**', 'index.html', 'package.json', 'vite.config.ts', 'firebase-applet-config.json', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build
+        env:
+          VITE_STATIC: 'true'
+          VITE_API_BASE: ${{ vars.API_BASE }}
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v4

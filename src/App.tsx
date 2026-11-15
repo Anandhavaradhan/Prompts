@@ -42,7 +42,7 @@ import {
   type SemanticMatchItem,
 } from './utils/promptLogic';
 import { SEED_PROMPTS } from './data/seedPrompts';
-import { semanticSearchPromptsWithGemini } from './utils/geminiClient';
+import { semanticSearchPromptsWithGemini, GEMINI_AVAILABLE } from './utils/geminiClient';
 import { PromptEditorModal } from './components/PromptEditorModal';
 import { PromptWorkbench } from './components/PromptWorkbench';
 import { CloudSyncView } from './components/CloudSyncView';
@@ -119,6 +119,7 @@ export default function App() {
   const [geminiMatches, setGeminiMatches] = useState<SemanticMatchItem[] | null>(null);
   const [isGeminiSearching, setIsGeminiSearching] = useState(false);
   const [geminiSearchError, setGeminiSearchError] = useState<string | null>(null);
+  const [searchSource, setSearchSource] = useState<'gemini' | 'device'>('gemini');
 
   // UI Feedback & Modal State
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -318,8 +319,9 @@ export default function App() {
     setIsGeminiSearching(true);
     setGeminiSearchError(null);
     try {
-      const matches = await semanticSearchPromptsWithGemini(q, activePrompts);
-      setGeminiMatches(matches);
+      const result = await semanticSearchPromptsWithGemini(q, activePrompts);
+      setGeminiMatches(result.value);
+      setSearchSource(result.source);
     } catch (err) {
       setGeminiSearchError(
         err instanceof Error ? err.message : 'Gemini search encountered an error.'
@@ -575,7 +577,7 @@ export default function App() {
                 ) : (
                   <Sparkles className="w-3.5 h-3.5" />
                 )}
-                <span>Gemini Search</span>
+                <span>{GEMINI_AVAILABLE ? 'Gemini Search' : 'Smart Search'}</span>
               </button>
             </div>
           </form>
@@ -613,7 +615,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 <span>
-                  Ranked by <strong>Gemini Semantic Search</strong> ({geminiMatches.length}{' '}
+                  Ranked by <strong>{searchSource === 'gemini' ? 'Gemini Semantic Search' : 'smart keyword search on this device'}</strong> ({geminiMatches.length}{' '}
                   {geminiMatches.length === 1 ? 'match' : 'matches'} for "{searchQuery}")
                 </span>
               </div>
@@ -907,7 +909,7 @@ export default function App() {
                   New Prompt Square
                 </span>
                 <span className="block text-xs text-slate-400 mt-0.5">
-                  Auto-name with Gemini
+                  {GEMINI_AVAILABLE ? 'Auto-name with Gemini' : 'Auto-name from the text'}
                 </span>
               </div>
             </button>

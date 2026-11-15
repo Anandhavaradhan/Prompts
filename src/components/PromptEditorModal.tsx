@@ -8,7 +8,7 @@ import {
   type PromptDraftInput,
   type PromptRecord,
 } from '../utils/promptLogic';
-import { generatePromptMetadataWithGemini } from '../utils/geminiClient';
+import { generatePromptMetadataWithGemini, GEMINI_AVAILABLE } from '../utils/geminiClient';
 
 interface PromptEditorModalProps {
   isOpen: boolean;
@@ -82,10 +82,11 @@ export const PromptEditorModal: React.FC<PromptEditorModalProps> = ({
 
     setIsNamingWithGemini(true);
     try {
-      const suggestion = await generatePromptMetadataWithGemini(
+      const named = await generatePromptMetadataWithGemini(
         content,
         (category as PromptCategory) || 'Coding'
       );
+      const suggestion = named.value;
       setTitle(suggestion.title);
       if (suggestion.description) {
         setDescription(suggestion.description);
@@ -95,7 +96,11 @@ export const PromptEditorModal: React.FC<PromptEditorModalProps> = ({
         setTagsInput(suggestion.tags.join(', '));
       }
       setErrors((prev) => ({ ...prev, title: '', content: '' }));
-      setGeminiSuccessNotice('Heading and category generated with Gemini.');
+      setGeminiSuccessNotice(
+        named.source === 'gemini'
+          ? 'Heading and category generated with Gemini.'
+          : 'Heading and category suggested from the text. Edit them as you like.'
+      );
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -265,7 +270,7 @@ export const PromptEditorModal: React.FC<PromptEditorModalProps> = ({
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <Wand2 className="w-3.5 h-3.5" />
-                  {isNamingWithGemini ? 'Naming...' : 'Auto-Name with Gemini'}
+                  {isNamingWithGemini ? 'Naming...' : GEMINI_AVAILABLE ? 'Auto-Name with Gemini' : 'Auto-Name'}
                 </button>
               </div>
               <input

@@ -5,6 +5,9 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    // Static builds (GitHub Pages, the Android and Windows apps) are served from a sub-folder or app://,
+    // so their asset links must be relative. Set VITE_STATIC=true for those builds.
+    base: process.env.VITE_STATIC === 'true' ? './' : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
