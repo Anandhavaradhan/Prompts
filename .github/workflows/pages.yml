@@ -1,13 +1,14 @@
 # Publishes PromptVault to GitHub Pages: https://anandhavaradhan.github.io/Prompts/
-# One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+#
+# Pages for this repo is set to "Deploy from a branch" (main), which on its own would serve the
+# source files, not the built app. So this runs right after each of those branch builds
+# (the page_build event) and publishes the built app over it.
 # Optional: set the repository variable API_BASE to the address of a hosted copy of server.ts
 # to turn on Gemini naming and search. Without it the site uses on-device matching.
 name: Website
 
 on:
-  push:
-    branches: [main]
-    paths: ['src/**', 'index.html', 'package.json', 'vite.config.ts', 'firebase-applet-config.json', '.github/workflows/pages.yml']
+  page_build:
   workflow_dispatch:
 
 permissions:
