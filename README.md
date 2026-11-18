@@ -25,7 +25,12 @@ npm install
 npm run dev      # Express + Vite on http://localhost:3000 (set GEMINI_API_KEY in .env for Gemini)
 npm test         # prompt logic and rules tests
 npm run lint     # type check
+npm run check:gemini   # is GEMINI_API_KEY valid, and does gemini-3.8-flash answer?
 ```
+
+`check:gemini` asks Google which models the key can see, then calls the one this app uses and reports
+the result. The key is never printed. Without a working key, naming and search fall back to on-device
+matching.
 
 `VITE_STATIC=true npm run build` makes the static build in `dist/`.
 `.github/workflows/pages.yml` publishes it to GitHub Pages and `.github/workflows/apps.yml` builds the apps from `android/` and `desktop/`.
